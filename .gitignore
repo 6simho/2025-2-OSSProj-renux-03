@@ -6,3 +6,5 @@ RenuxServer.sln
 **/obj/
 Dockerfile
 docker-compose.yml
+*.env
+
