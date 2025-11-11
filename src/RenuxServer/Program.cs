@@ -14,6 +14,7 @@ using RenuxServer.Dtos.ChatDtos;
 using RenuxServer.Dtos.EtcDtos;
 using RenuxServer.Apis;
 using RenuxServer.Apis.Chat;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder();
 
@@ -24,7 +25,6 @@ builder.Services.AddDbContext<ServerDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("RenuxServer"));
 });
-
 
 // AutoMapper Setting
 builder.Services.AddAutoMapper(options =>
@@ -70,12 +70,23 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+
+using (var db = app.Services.GetService<ServerDbContext>()!)
 {
-    var db = scope.ServiceProvider.GetRequiredService<ServerDbContext>();
     try
     {
         await db.Database.MigrateAsync();
+
+        List<Major> majors = await db.Majors.ToListAsync();
+
+        foreach(var m in majors)
+        {
+            if (!await db.Organizations.AnyAsync(o => o.MajorId == m.Id))
+                await db.Organizations.AddAsync(new() { IsActive = true, Major = m });
+        }
+
+        await db.SaveChangesAsync();
     }
     catch(Exception e)
     {
@@ -84,7 +95,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
